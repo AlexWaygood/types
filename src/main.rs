@@ -1,38 +1,24 @@
 use std::collections::HashSet;
 
-struct Type {
-    kind: TypeKind,
-    qualifiers: HashSet<TypeQualifier>,
+enum ValidType {
+    FunctionParameter(FunctionParameterType),
+    FunctionReturn(FunctionReturnType),
+    MethodParameter(MethodParameterType),
+    MethodReturn(MethodReturnType),
+    NonClassScopedVariable(NonClassScopedVariableType),
+    ClassScopedVariable(ClassScopedVariableType),
+    TypedDictScopedVariable(TypedDictScopedVariableType),
 }
 
-enum TypeKind {
+enum FunctionParameterType {
     Never,
-
-    /// E.g.:
-    /// - `x: int`
-    /// - `x: int | str`
-    /// - `x: T` (where `T` is a type variable)
-    /// - `x: Any`
-    Instance(InstanceTypeKind),
-
-    /// E.g.
-    /// - `x: type[int]`
-    /// - `x: type[int | str]`
-    /// - `x: type[T]` (where `T` is a type variable)
-    /// - `x: type[Any]`
-    Type(TypeTypeKind),
+    Instance(FunctionParameterInstanceTypeKind),
+    Type(FunctionParameterTypeTypeKind),
 }
 
-enum TypeQualifier {
-    ClassVar,
-    Final,
-    Required,
-    NotRequired,
-}
-
-enum InstanceTypeKind {
+enum FunctionParameterInstanceTypeKind {
     Class(ClassDef),
-    Union(UnionType),
+    Union(UnionType<NonClassScopedVariableKind>),
     TypeVar(TypeVarType),
     // e.g. `args` in `def f[*Ts](*args: *Ts): ...`
     UnpackedTypeVarTuple(UnpackedTypeVarTupleType),
@@ -40,28 +26,152 @@ enum InstanceTypeKind {
     ParamSpecKwargs(ParamSpecKwargsType),
     Callable(CallableType),
     Tuple(TupleType),
-    Selff(SelfType),
     Literal(LiteralType),
-    TypeGuard(TypeGuardType),
-    TypeIs(TypeIsType),
     NamedTuple(NamedTupleType),
     TypedDict(TypedDictType),
     Any,
     LiteralString,
 }
 
-enum TypeTypeKind {
+enum FunctionParameterTypeTypeKind {
     Class(ClassDef),
-    Union(UnionType),
+    Union(UnionType<NonClassScopedVariableKind>),
     TypeVar(TypeVarType),
-    Selff(SelfType),
     NamedTuple(NamedTupleType),
     Any,
-    // Pyright accepts `type[LiteralString]` and `type[Literal["foo"]]`
-    // in annotations but these don't make any sense to me?
-    // (Mypy doesn't support LiteralString yet.)
-    // Both pyright and mypy accept `type[tuple[str, str]]`,
-    // but that also doesn't make any sense to me.
+}
+
+enum FunctionReturnType {
+    Never,
+    Instance(FunctionReturnInstanceTypeKind),
+    Type(FunctionReturnTypeTypeKind),
+    SpecialForm(FunctionReturnSpecialForm)
+}
+
+enum FunctionReturnUnionTypeKind {
+    Instance(FunctionReturnInstanceTypeKind),
+    Type(FunctionReturnTypeTypeKind),
+}
+
+enum FunctionReturnInstanceTypeKind {
+    Class(ClassDef),
+    Union(UnionType<FunctionReturnUnionTypeKind>),
+    TypeVar(TypeVarType),
+    Callable(CallableType),
+    Tuple(TupleType),
+    Literal(LiteralType),
+    NamedTuple(NamedTupleType),
+    TypedDict(TypedDictType),
+    Any,
+    LiteralString,
+}
+
+enum FunctionReturnSpecialForm {
+    TypeIs(TypeIsType),
+    TypeGuard(TypeGuardType),
+}
+
+enum FunctionReturnTypeTypeKind {
+    Class(ClassDef),
+    Union(UnionType<FunctionReturnUnionTypeKind>),
+    TypeVar(TypeVarType),
+    NamedTuple(NamedTupleType),
+    Any,
+}
+
+enum MethodParameterType {
+    Never,
+    Instance(MethodParameterInstanceTypeKind),
+    Type(MethodParameterTypeTypeKind),
+}
+
+enum MethodParameterInstanceTypeKind {
+    Selff(SelfType),
+    FunctionParameter(FunctionParameterInstanceTypeKind)
+}
+
+enum MethodParameterTypeTypeKind {
+    Selff(SelfType),
+    FunctionParameter(FunctionParameterTypeTypeKind),
+}
+
+enum MethodReturnType {
+    Never,
+    Instance(MethodReturnInstanceTypeKind),
+    Type(MethodReturnTypeTypeKind),
+}
+
+enum MethodReturnInstanceTypeKind {
+    Selff(SelfType),
+    FunctionParameter(FunctionReturnInstanceTypeKind),
+}
+
+enum MethodReturnTypeTypeKind {
+    Selff(SelfType),
+    FunctionReturn(FunctionReturnTypeTypeKind),
+}
+
+struct NonClassScopedVariableType {
+    final_qualifier: bool,
+    kind: NonClassScopedVariableKind
+}
+
+enum NonClassScopedVariableKind {
+    Never,
+    Instance(NonClassScopedInstanceTypeKind),
+    Type(NonClassScopedTypeTypeKind),
+}
+
+enum NonClassScopedInstanceTypeKind<T = NonClassScopedVariableKind> {
+    Class(ClassDef),
+    Union(UnionType<T>),
+    Callable(CallableType),
+    Tuple(TupleType),
+    Literal(LiteralType),
+    NamedTuple(NamedTupleType),
+    TypedDict(TypedDictType),
+    Any,
+    LiteralString,
+}
+
+enum NonClassScopedTypeTypeKind<T = NonClassScopedVariableKind> {
+    Class(ClassDef),
+    Union(UnionType<T>),
+    NamedTuple(NamedTupleType),
+    Any,
+}
+
+struct ClassScopedVariableType {
+    qualifier: ClassScopedVariableQualifier,
+    kind: ClassScopedVariableKind
+}
+
+enum ClassScopedVariableKind {
+    Never,
+    Instance(ClassScopedInstanceTypeKind),
+    Type(ClassScopedTypeTypeKind),
+}
+
+enum ClassScopedInstanceTypeKind {
+    NonClassScopeSpecific(NonClassScopedInstanceTypeKind<ClassScopedInstanceTypeKind>),
+    Selff(SelfType),
+}
+
+enum ClassScopedTypeTypeKind {
+    NonClassScopeSpecific(NonClassScopedTypeTypeKind<ClassScopedTypeTypeKind>),
+    Selff(SelfType),
+}
+
+enum ClassScopedVariableQualifier {
+    None,
+    Final,
+    ClassVar,
+    FinalClassVar,  // Only valid if it's a dataclass? (Carl knows best here ;)
+}
+
+struct TypedDictScopedVariableType {
+    required: bool,
+    kind: NonClassScopedVariableKind,
 }
 
 enum CallableType {
@@ -95,8 +205,15 @@ struct LiteralType {}
 struct TypeGuardType {}
 struct TypeIsType {}
 struct NamedTupleType {}
+
+// Or should we have a `StructuralType` enum?
+// ```rs
+// enum StructuralType {
+//     Protocol,
+//     TypedDict,
+// }
 struct TypedDictType {}
 
-struct UnionType {
-    members: HashSet<Type>,
+struct UnionType<T> {
+    members: HashSet<T>,
 }
